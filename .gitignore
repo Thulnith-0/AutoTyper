@@ -1,9 +1,73 @@
+# ------------------------------
+# Python
+# ------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
 venv/
 .venv/
-__pycache__/
-*.pyc
+env/
+ENV/
+
+# ------------------------------
+# Build / Distribution
+# ------------------------------
 build/
 build_autotyper/
 dist/
-*.log
 *.spec
+
+# PyInstaller cache
+*.manifest
+*.pyz
+*.pkg
+
+# ------------------------------
+# Logs & temp files
+# ------------------------------
+*.log
+*.tmp
+*.temp
+
+# ------------------------------
+# OS files
+# ------------------------------
+.DS_Store
+Thumbs.db
+
+# ------------------------------
+# IDE / Editor
+# ------------------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ------------------------------
+# Python tools
+# ------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ------------------------------
+# Environment variables
+# ------------------------------
+.env
+.env.*
+
+# ------------------------------
+# Misc
+# ------------------------------
+*.bak
+*.swp
+*.orig
+
+
+# Ignore executable builds (recommended)
+# *.exe
+
+# Ignore icons (if you regenerate often)
+# assets/*.ico
