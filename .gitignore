@@ -1,0 +1,9 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+build/
+build_autotyper/
+dist/
+*.log
+*.spec

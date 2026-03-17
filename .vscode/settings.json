@@ -1,0 +1,5 @@
+{
+    "pyre2.enable": false,
+    "python.analysis.extraPaths": ["."],
+    "python.analysis.typeCheckingMode": "off"
+}
