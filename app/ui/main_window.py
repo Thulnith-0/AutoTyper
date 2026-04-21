@@ -1,8 +1,16 @@
-import customtkinter as ctk # type: ignore
-import sys
 import ctypes
 import os
+import sys
 from tkinter import messagebox
+
+import customtkinter as ctk # type: ignore
+
+try:
+    from PIL import Image, ImageTk # type: ignore
+except ImportError:  # pragma: no cover - Pillow is installed via pyautogui in normal use
+    Image = None
+    ImageTk = None
+
 from app.core.engine import TypingEngine  # type: ignore
 
 ctk.set_appearance_mode("System")
@@ -13,60 +21,17 @@ class AutoTyperApp(ctk.CTk):
         super().__init__()
         
         self.title("AutoTyper")
+        self._base_path = self._get_base_path()
+        self._icon_image = None
         
         window_width = 600
         window_height = 650
 
-        # Center perfectly in the usable work area, accounting for DPI scaling.
-        # SPI_GETWORKAREA (48) returns physical pixels; Tkinter geometry uses logical pixels.
-        # We divide by the DPI scale factor to convert between the two.
-        try:
-            class RECT(ctypes.Structure):
-                _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
-                             ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
-            rect = RECT()
-            ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(rect), 0)  # type: ignore
-            dpi = ctypes.windll.user32.GetDpiForSystem()  # type: ignore
-            scale = dpi / 96.0  # 96 DPI = 100% scale
-            work_w = int((rect.right - rect.left) / scale)
-            work_h = int((rect.bottom - rect.top) / scale)
-            x = int(rect.left / scale) + (work_w - window_width) // 2
-            y = int(rect.top / scale) + (work_h - window_height) // 2
-        except Exception:
-            # Fallback: use Tkinter screen size minus a standard taskbar height
-            x = (self.winfo_screenwidth() - window_width) // 2
-            y = (self.winfo_screenheight() - window_height) // 2 - 24
-
-        self.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        self._center_window(window_width, window_height)
         
         self.resizable(False, False)
-
-        # Set window icon (works at runtime)
-        if getattr(sys, 'frozen', False):
-            # Running as compiled PyInstaller executable
-            base_path = sys._MEIPASS # type: ignore
-        else:
-            # Running natively from python source
-            base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-        icon_path = os.path.join(base_path, "assets", "icon.ico")
-        if os.path.exists(icon_path):
-            self.iconbitmap(icon_path)
-
-        if sys.platform == "win32":
-            try:
-                # Force Windows taskbar to treat this as a standalone app, not a Python/Tkinter generic process
-                myappid = 'mycompany.autotyper.app.1'
-                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-            except Exception:
-                pass
-            
-            try:
-                hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
-                DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(ctypes.c_int(2)), ctypes.sizeof(ctypes.c_int(2)))
-            except Exception:
-                pass
+        self._configure_window_icon()
+        self._apply_platform_window_tweaks()
 
         self.engine = TypingEngine({
             'update_status': self.update_status,
@@ -75,6 +40,85 @@ class AutoTyperApp(ctk.CTk):
         })
 
         self.setup_ui()
+
+    def _get_base_path(self) -> str:
+        if getattr(sys, "frozen", False):
+            return sys._MEIPASS  # type: ignore[attr-defined]
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+    def _center_window(self, window_width: int, window_height: int) -> None:
+        if sys.platform == "win32":
+            try:
+                # Center in the usable work area while accounting for Windows DPI scaling.
+                class RECT(ctypes.Structure):
+                    _fields_ = [
+                        ("left", ctypes.c_long),
+                        ("top", ctypes.c_long),
+                        ("right", ctypes.c_long),
+                        ("bottom", ctypes.c_long),
+                    ]
+
+                rect = RECT()
+                ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(rect), 0)  # type: ignore[attr-defined]
+                dpi = ctypes.windll.user32.GetDpiForSystem()  # type: ignore[attr-defined]
+                scale = dpi / 96.0
+                work_w = int((rect.right - rect.left) / scale)
+                work_h = int((rect.bottom - rect.top) / scale)
+                x = int(rect.left / scale) + (work_w - window_width) // 2
+                y = int(rect.top / scale) + (work_h - window_height) // 2
+                self.geometry(f"{window_width}x{window_height}+{x}+{y}")
+                return
+            except Exception:
+                pass
+
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() - window_width) // 2
+        y = (self.winfo_screenheight() - window_height) // 2
+        self.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
+    def _configure_window_icon(self) -> None:
+        icon_path = os.path.join(self._base_path, "assets", "icon.ico")
+        if not os.path.exists(icon_path):
+            return
+
+        if sys.platform == "win32":
+            try:
+                self.iconbitmap(icon_path)
+                return
+            except Exception:
+                pass
+
+        if Image is None or ImageTk is None:
+            return
+
+        try:
+            self._icon_image = ImageTk.PhotoImage(Image.open(icon_path))
+            self.iconphoto(True, self._icon_image)
+        except Exception:
+            pass
+
+    def _apply_platform_window_tweaks(self) -> None:
+        if sys.platform != "win32":
+            return
+
+        try:
+            # Force Windows taskbar to treat this as a standalone app, not a generic Tk process.
+            myappid = "mycompany.autotyper.app.1"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())  # type: ignore[attr-defined]
+            immersive_dark_mode = ctypes.c_int(2)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(  # type: ignore[attr-defined]
+                hwnd,
+                20,
+                ctypes.byref(immersive_dark_mode),
+                ctypes.sizeof(immersive_dark_mode),
+            )
+        except Exception:
+            pass
 
     def setup_ui(self):
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
